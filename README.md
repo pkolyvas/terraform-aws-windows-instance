@@ -1,11 +1,13 @@
-AWS Instance
+:bangbang: THIS IS AN ALPHA MODULE DO NOT USE IN PRODUCTION :bangbang:
+======================================================================
+
+AWS Windows Instance
 ============
-This is an module to creates a DC/OS AWS Instance.
+This is an module to creates a DC/OS Windows AWS Instances.
 
-If `ami` variable is not set. This module uses the mesosphere suggested OS
-which also includes all prerequisites.
+If `ami` variable is not set. This module uses the latest AWS Windows AMI.
 
-Using you own AMI
+Using you own AMI *FIXME*
 -----------------
 If you choose to use your own AMI please make sure the DC/OS related
 prerequisites are met. Take a look at https://docs.mesosphere.com/1.11/installing/ent/custom/system-requirements/install-docker-RHEL/
@@ -15,7 +17,7 @@ EXAMPLE
 
 ```hcl
 module "dcos-master-instance" {
-  source  = "terraform-dcos/instance/aws"
+  source  = "terraform-dcos/windows-instance/aws"
   version = "~> 0.2.0"
 
   cluster_name = "production"
