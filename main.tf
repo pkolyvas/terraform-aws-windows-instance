@@ -1,136 +1,87 @@
 /**
- * :bangbang: THIS IS AN ALPHA MODULE DO NOT USE IN PRODUCTION :bangbang:
- * ======================================================================
- *
- * AWS Windows Instance
+ * AWS DC/OS Windows Instances
  * ============
- * This is an module to creates a DC/OS Windows AWS Instances.
- *
- * If `ami` variable is not set. This module uses the latest AWS Windows AMI.
- *
- * Using you own AMI *FIXME*
- * -----------------
- * If you choose to use your own AMI please make sure the DC/OS related
- * prerequisites are met. Take a look at https://docs.mesosphere.com/1.11/installing/ent/custom/system-requirements/install-docker-RHEL/
+ * This module creates typical windows instances.
+ * _Beaware that this feature is in EXPERIMENTAL state_
  *
  * EXAMPLE
  * -------
  *
  *```hcl
- * module "dcos-master-instance" {
- *   source  = "terraform-dcos/windows-instance/aws"
+ * module "dcos-windows-instances" {
+ *   source  = "dcos-terraform/windows-instance/aws"
  *   version = "~> 0.2.0"
  *
  *   cluster_name = "production"
- *   subnet_ids = ["subnet-12345678"]
- *   security_group_ids = ["sg-12345678"]
- *   hostname_format = "%[3]s-master%[1]d-%[2]s"
- *   ami = "ami-12345678"
+ *   aws_subnet_ids = ["subnet-12345678"]
+ *   aws_security_group_ids = ["sg-12345678"]"
  *
- *   extra_volumes = [
- *     {
- *       size        = "100"
- *       type        = "gp2"
- *       iops        = "3000"
- *       device_name = "/dev/xvdi"
- *     },
- *     {
- *       size        = "1000"
- *       type        = ""     # Use AWS default.
- *       iops        = "0"    # Use AWS default.
- *       device_name = "/dev/xvdj"
- *     }
- *   ]
+ *   num = "2"
  * }
  *```
  */
 
 provider "aws" {}
 
-// If name_prefix exists, merge it into the cluster_name
-locals {
-  cluster_name = "${var.name_prefix != "" ? "${var.name_prefix}-${var.cluster_name}" : var.cluster_name}"
+data "aws_ami" "windows_ami" {
+  owners = ["amazon"]
 
-  # NOTE: This is to workaround the divide by zero warning from Terraform.
-  num_extra_volumes = "${length(var.extra_volumes) > 0 ? length(var.extra_volumes) : 1}"
-
-  # NOTE: This is to make "lookup" happy. Otherwise, it will complain
-  # about the type cannot be derived if "var.extra_volumes" is not
-  # set.
-  extra_volumes = "${concat(var.extra_volumes, list(map("dummy", "dummy")))}"
+  filter {
+    name   = "name"
+    values = ["Windows_Server-1809-English-Core-ContainersLatest-2019.05.15"]
+  }
 }
 
-module "dcos-tested-oses" {
-  source  = "dcos-terraform/tested-oses/aws"
-  version = "~> 0.2.0"
+resource "tls_private_key" "private_key" {
+  count     = "${var.num > 0 ? 1 : 0}"
+  algorithm = "RSA"
+  rsa_bits  = 2048
+}
+
+resource "aws_key_pair" "windowskey" {
+  count      = "${var.num > 0 ? 1 : 0}"
+  key_name   = "${var.cluster_name}-windowskey"
+  public_key = "${element(tls_private_key.private_key.*.public_key_openssh, 0)}"
+}
+
+// Instances is spawning the VMs to be used with DC/OS (bootstrap)
+module "dcos-windows-instances" {
+  source  = "dcos-terraform/instance/aws"
+  version = "~> 0.2.1"
 
   providers = {
     aws = "aws"
   }
 
-  os = "${var.dcos_instance_os}"
+  cluster_name       = "${var.cluster_name}"
+  hostname_format    = "${var.hostname_format}"
+  num                = "${var.num}"
+  ami                = "${coalesce(var.aws_ami, data.aws_ami.windows_ami.id)}"
+  user_data          = "${coalesce(var.user_data, file("${path.module}/user-data.tmpl"))}"
+  instance_type      = "${var.aws_instance_type}"
+  subnet_ids         = ["${var.aws_subnet_ids}"]
+  security_group_ids = ["${var.aws_security_group_ids}"]
+
+  # we need the private key to support a given key.
+  # This feature should then be properly designed.
+  key_name = "${var.num > 0 ? element(coalescelist(aws_key_pair.windowskey.*.key_name, list("")), 0) : var.aws_key_name}"
+
+  root_volume_size            = "${var.aws_root_volume_size}"
+  root_volume_type            = "${var.aws_root_volume_type}"
+  extra_volumes               = ["${var.aws_extra_volumes}"]
+  associate_public_ip_address = "${var.aws_associate_public_ip_address}"
+  tags                        = "${var.tags}"
+  dcos_instance_os            = "${var.dcos_instance_os}"
+  iam_instance_profile        = "${var.aws_iam_instance_profile}"
+  get_password_data           = true
+  name_prefix                 = "${var.name_prefix}"
 }
 
-resource "aws_instance" "instance" {
-  instance_type = "${var.instance_type}"
-  ami           = "${coalesce(var.ami, module.dcos-tested-oses.aws_ami)}"
+data "template_file" "decrypt" {
+  count    = "${var.num}"
+  template = "$${password}"
 
-  count                       = "${var.num}"
-  key_name                    = "${var.key_name}"
-  vpc_security_group_ids      = ["${var.security_group_ids}"]
-  associate_public_ip_address = "${var.associate_public_ip_address}"
-  iam_instance_profile        = "${var.iam_instance_profile}"
-
-  # availability_zone = "${element(var.availability_zones, count.index % length(var.availability_zones)}"
-  subnet_id = "${element(var.subnet_ids, count.index % length(var.subnet_ids))}"
-
-  tags = "${merge(var.tags, map("Name", format(var.hostname_format, (count.index + 1), var.region, local.cluster_name),
-                                "Cluster", var.cluster_name,
-                                "KubernetesCluster", var.cluster_name))}"
-
-  root_block_device {
-    volume_size           = "${var.root_volume_size}"
-    volume_type           = "${var.root_volume_type}"
-    delete_on_termination = true
+  vars {
+    password = "${rsadecrypt(element(coalescelist(module.dcos-windows-instances.password_data, list("")), count.index), element(tls_private_key.private_key.*.private_key_pem,0))}"
   }
-
-  user_data = "${var.user_data}"
-
-  lifecycle {
-    ignore_changes = ["user_data", "ami"]
-  }
-}
-
-resource "aws_ebs_volume" "volume" {
-  # We group volumes from one instance first. For instance:
-  # - length(var.extra_volumes) = 2 (volumes)
-  # - var.num = 3 (instances)
-  #
-  # We will get:
-  # - volume.0 (instance 0)
-  # - volume.1 (instance 0)
-  # - volume.2 (instance 1)
-  # - volume.3 (instance 1)
-  # - volume.4 (instance 2)
-  # - volume.5 (instance 2)
-  count = "${var.num * length(var.extra_volumes)}"
-
-  availability_zone = "${element(aws_instance.instance.*.availability_zone, count.index / local.num_extra_volumes)}"
-  size              = "${lookup(local.extra_volumes[count.index % local.num_extra_volumes], "size", "120")}"
-  type              = "${lookup(local.extra_volumes[count.index % local.num_extra_volumes], "type", "")}"
-  iops              = "${lookup(local.extra_volumes[count.index % local.num_extra_volumes], "iops", "0")}"
-
-  tags = "${merge(var.tags, map(
-                "Name", format(var.extra_volume_name_format,
-                               var.cluster_name,
-                               element(aws_instance.instance.*.id, count.index / local.num_extra_volumes)),
-                "Cluster", var.cluster_name))}"
-}
-
-resource "aws_volume_attachment" "volume-attachment" {
-  count        = "${var.num * length(var.extra_volumes)}"
-  device_name  = "${lookup(local.extra_volumes[count.index % local.num_extra_volumes], "device_name", "dummy")}"
-  volume_id    = "${element(aws_ebs_volume.volume.*.id, count.index)}"
-  instance_id  = "${element(aws_instance.instance.*.id, count.index / local.num_extra_volumes)}"
-  force_detach = true
 }

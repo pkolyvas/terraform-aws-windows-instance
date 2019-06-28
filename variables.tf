@@ -1,16 +1,6 @@
-variable "region" {
-  description = "region"
-  default     = ""
-}
-
 variable "cluster_name" {
   description = "Name of the DC/OS cluster"
 }
-
-# variable "availability_zones" {
-#  description = "Specify the availability zones to be used"
-#  type = "list"
-# }
 
 variable "tags" {
   description = "Add custom tags to all resources"
@@ -18,50 +8,47 @@ variable "tags" {
   default     = {}
 }
 
-variable "ami" {
-  description = "AMI that will be used for the instance"
+variable "aws_ami" {
+  description = "AMI that will be used for the instances instead of the Mesosphere chosen default images. Custom AMIs must fulfill the Mesosphere DC/OS system-requirements: See https://docs.mesosphere.com/1.12/installing/production/system-requirements/"
+  default     = ""
 }
 
-variable "num" {
-  description = "How many instances should be created"
+variable "aws_instance_type" {
+  description = "Instance type"
+  default     = "m4.xlarge"
 }
 
-variable "instance_type" {
-  description = "Instance Type"
-  default     = "m4.large"
+variable "aws_root_volume_size" {
+  description = "Root volume size in GB"
+  default     = "120"
 }
 
-variable "root_volume_size" {
-  description = "Specify the root volume size"
-  default     = "40"
+variable "aws_root_volume_type" {
+  description = "Root volume type"
+  default     = "standard"
 }
 
-variable "root_volume_type" {
-  description = "Specify the root volume type. Masters MUST have at least gp2"
-  default     = "gp2"
-}
-
-variable "extra_volumes" {
+variable "aws_extra_volumes" {
   description = "Extra volumes for each instance"
   default     = []
 }
 
-variable "subnet_ids" {
-  description = "List of subnet IDs created in this network"
+variable "aws_subnet_ids" {
+  description = "Subnets to spawn the instances in. The module tries to distribute the instances"
   type        = "list"
 }
 
-variable "security_group_ids" {
+variable "aws_security_group_ids" {
   description = "Firewall IDs to use for these instances"
   type        = "list"
 }
 
-variable "iam_instance_profile" {
-  description = "The instance profile to be used for these instances"
+variable "aws_iam_instance_profile" {
+  description = "Instance profile to be used for these instances"
   default     = ""
 }
 
-variable "associate_public_ip_address" {
+variable "aws_associate_public_ip_address" {
   description = "Associate a public IP address with the instances"
   default     = true
 }
@@ -71,27 +58,26 @@ variable "user_data" {
   default     = ""
 }
 
+// TODO: Maybe use a list instead and provision keys through cloudinit
+variable "aws_key_name" {
+  description = "Specify the aws ssh key to use. We assume its already loaded in your SSH agent. Set ssh_public_key_file to empty string"
+}
+
+variable "hostname_format" {
+  description = "Format the hostname inputs are index+1, region, cluster_name"
+  default     = "%[3]s-windows%[1]d-%[2]s"
+}
+
 variable "dcos_instance_os" {
   description = "Operating system to use. Instead of using your own AMI you could use a provided OS."
   default     = "centos_7.4"
 }
 
-// TODO: Maybe use a list instead and provision keys through cloudinit
-variable "key_name" {
-  description = "The SSH key to use for these instances."
-}
-
-variable "hostname_format" {
-  description = "Format the hostname inputs are index+1, region, cluster_name"
-  default     = "%[3]s-instance%[1]d-%[2]s"
+variable "num" {
+  description = "How many instances should be created"
 }
 
 variable "name_prefix" {
   description = "Name Prefix"
   default     = ""
-}
-
-variable "extra_volume_name_format" {
-  description = "Printf style format for naming the extra volumes. Inputs are cluster_name and instance ID."
-  default     = "extra-volumes-%s-%s"
 }
