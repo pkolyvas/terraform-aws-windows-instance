@@ -49,5 +49,5 @@ module "dcos-windows-instances" {
 | os\_user | The OS user to be used |
 | private\_ips | List of private ip addresses created by this module |
 | public\_ips | List of public ip addresses created by this module |
-| windows-passwords | Returns the decrypted AWS generated windows password |
+| windows\_passwords | Returns the decrypted AWS generated windows password |
 

@@ -18,7 +18,7 @@ output "os_user" {
   value       = "Administrator"
 }
 
-output "windows-passwords" {
+output "windows_passwords" {
   description = "Returns the decrypted AWS generated windows password"
   value       = "${data.template_file.decrypt.*.rendered}"
 }
