@@ -18,11 +18,6 @@ output "os_user" {
   value       = "Administrator"
 }
 
-output "prereq-id" {
-  description = "Returns the ID of the prereq script (if user_data or ami are not used)"
-  value       = "${module.dcos-windows-instances.prereq-id}"
-}
-
 output "windows-passwords" {
   description = "Returns the decrypted AWS generated windows password"
   value       = "${data.template_file.decrypt.*.rendered}"
