@@ -25,10 +25,10 @@ provider "aws" {}
 
 data "aws_ami" "windows_ami" {
   owners = ["amazon"]
-
+  most_recent = true
   filter {
     name   = "name"
-    values = ["Windows_Server-1809-English-Core-ContainersLatest-2019.09.11"]
+    values = ["Windows_Server-1809-English-Core-ContainersLatest-*"]
   }
 }
 
