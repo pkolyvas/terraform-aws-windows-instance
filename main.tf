@@ -54,35 +54,35 @@ module "dcos-windows-instances" {
     aws = "aws"
   }
 
-  cluster_name       = "${var.cluster_name}"
-  hostname_format    = "${var.hostname_format}"
-  num                = "${var.num}"
+  cluster_name       = var.cluster_name
+  hostname_format    = var.hostname_format
+  num                = var.num
   ami                = "${coalesce(var.aws_ami, data.aws_ami.windows_ami.id)}"
   user_data          = "${coalesce(var.user_data, file("${path.module}/user-data.tmpl"))}"
-  instance_type      = "${var.aws_instance_type}"
-  subnet_ids         = ["${var.aws_subnet_ids}"]
-  security_group_ids = ["${var.aws_security_group_ids}"]
+  instance_type      = var.aws_instance_type
+  subnet_ids         = [var.aws_subnet_ids]
+  security_group_ids = [var.aws_security_group_ids]
 
   # we need the private key to support a given key.
   # This feature should then be properly designed.
   key_name = "${var.num > 0 ? element(coalescelist(aws_key_pair.windowskey.*.key_name, list("")), 0) : var.aws_key_name}"
 
-  root_volume_size            = "${var.aws_root_volume_size}"
-  root_volume_type            = "${var.aws_root_volume_type}"
-  extra_volumes               = ["${var.aws_extra_volumes}"]
-  associate_public_ip_address = "${var.aws_associate_public_ip_address}"
-  tags                        = "${var.tags}"
-  dcos_instance_os            = "${var.dcos_instance_os}"
-  iam_instance_profile        = "${var.aws_iam_instance_profile}"
+  root_volume_size            = var.aws_root_volume_size
+  root_volume_type            = var.aws_root_volume_type
+  extra_volumes               = [var.aws_extra_volumes]
+  associate_public_ip_address = var.aws_associate_public_ip_address
+  tags                        = var.tags
+  dcos_instance_os            = var.dcos_instance_os
+  iam_instance_profile        = var.aws_iam_instance_profile
   get_password_data           = true
-  name_prefix                 = "${var.name_prefix}"
+  name_prefix                 = var.name_prefix
 }
 
 data "template_file" "decrypt" {
-  count    = "${var.num}"
-  template = "$${password}"
+  count    = var.num
+  template = password
 
   vars {
-    password = "${rsadecrypt(element(coalescelist(module.dcos-windows-instances.password_data, list("")), count.index), element(tls_private_key.private_key.*.private_key_pem,0))}"
+    password = "${rsadecrypt(element(coalescelist(module.dcos-windows-instances.password_data, list("")), count.index), element(tls_private_key.private_key.*.private_key_pem, 0))}"
   }
 }
